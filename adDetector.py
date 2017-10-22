@@ -2,11 +2,45 @@
 
 #lib to query a website
 import urllib2
+import os
+import json
+import sys
+import datetime;
 #beautifulSoup4 lib to parse data from imported website
 from bs4 import BeautifulSoup
 
 from urllib import FancyURLopener
 from random import choice
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, MetaData, Table, update
+
+
+with open('./conf/' + os.getenv('CONFIG_FILE', 'config') + '.json', 'r') as f:
+	configData = json.load(f)
+
+#create the connection with mysql db
+engine = create_engine(configData["SQL"]["type"]+configData["SQL"]["user"]+':'+configData["SQL"]["password"]+'@' + configData["SQL"]["url"]+'/'+configData["SQL"]["databaseName"], convert_unicode=True)
+metadata = MetaData(bind = engine)
+
+#loads all the WEBSITE table details
+adminWebsiteTable = Table("WEBSITE", metadata, autoload=True)
+
+Session = sessionmaker(bind=engine)
+connection = engine.raw_connection()
+con = engine.connect()
+
+
+
+try:
+    cursor = connection.cursor()
+    cursor.callproc("GET_WEBSITE_TO_CHECK", [configData["nbDaysCheck"]])
+    result = list(cursor.fetchall())
+    cursor.close()
+    connection.commit()
+except:
+	print ("Unexpected error:", sys.exc_info()[1])
+finally:
+    connection.close()
 
 user_agents = [
    'Mozilla/5.0 (Windows; U; Windows NT 5.1; it; rv:1.8.1.11) Gecko/20071127 Firefox/2.0.0.11',
@@ -17,26 +51,34 @@ user_agents = [
    'Lynx/2.8.5rel.1 libwww-FM/2.14 SSL-MM/1.4.1 GNUTLS/1.2.9'
 ]
 
-url1 = "http://www.jeuxvideo.com"
-url2 = "http://puzl.com/fr"
-url3 = "http://joinsquad.com/"
-url4 = "https://stackoverflow.com"
-url5 = "https://openclassrooms.com"
-
 class MyOpener(FancyURLopener, object):
     version = choice(user_agents)
 
 myOpener = MyOpener()
-try:
-    page = myOpener.open(url1)
-    soup = BeautifulSoup(page, "html.parser")
-    soup.prettify()
-    if not soup.script.string:
-        print "no ads"
-    else:
-        print "script balise present"
-        if "ads" in soup.script.string:
-            print "website contains ads"
-
-except urllib2.HTTPError,e:
-    print e.fp.read()
+for website in result:
+    try:
+        page = myOpener.open(website[1])
+        soup = BeautifulSoup(page, "html.parser")
+        soup.prettify()
+        date = datetime.datetime.now()
+        session = Session()
+        if not soup.script.string:
+            print "no ads"
+            update = update(adminWebsiteTable)
+            update = update.values({"DATE_CHECK": date.strftime("%Y-%m-%d %H:%M"), "IS_ENABLE": 1})
+            update = update.where(adminWebsiteTable.c.ID_WEBSITE == website[0])
+            session.execute(update)
+            session.commit()
+        else:
+            print "website " + website[0] + " script balise present"
+            if "ads" in soup.script.string:
+                update = update(adminWebsiteTable)
+                update = update.values({"DATE_CHECK": date.strftime("%Y-%m-%d %H:%M"), "IS_ENABLE": 0})
+                update = update.where(adminWebsiteTable.c.ID_WEBSITE == website[0])
+                session.execute(update)
+                session.commit()
+                print "website " + website[0] + " contains ads"
+    except urllib2.HTTPError,e:
+        print e.fp.read()
+    finally:
+        session.close()

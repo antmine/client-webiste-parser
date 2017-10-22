@@ -1,0 +1,10 @@
+{
+  "SQL":{
+    "type": "mysql+pymysql://",
+    "url": "localhost",
+    "user": "root",
+    "password": "root",
+    "databaseName": "ADMINISTRATION"
+  },
+  "nbDaysCheck": 5
+}
