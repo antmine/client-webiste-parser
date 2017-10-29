@@ -1,10 +1,10 @@
 {
   "SQL":{
     "type": "mysql+pymysql://",
-    "url": "sql-server",
+    "url": "127.0.0.1",
     "user": "root",
     "password": "JKHFGH9NRT27",
-    "databaseName": "APPLICATION"
+    "databaseName": "ADMINISTRATION"
   },
   "nbDaysCheck": 10
 }
