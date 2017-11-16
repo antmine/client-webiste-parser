@@ -55,6 +55,7 @@ class MyOpener(FancyURLopener, object):
     version = choice(user_agents)
 
 myOpener = MyOpener()
+print('result ==>', result)
 for website in result:
     try:
         page = myOpener.open(website[1])
@@ -78,7 +79,6 @@ for website in result:
                 session.execute(update)
                 session.commit()
                 print "website " + website[0] + " contains ads"
+        session.close()
     except urllib2.HTTPError,e:
         print e.fp.read()
-    finally:
-        session.close()
