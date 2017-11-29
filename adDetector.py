@@ -85,5 +85,3 @@ for website in result:
             session.commit()
     except urllib2.HTTPError, e:
         print e.fp.read()
-    finally:
-        session.close()
