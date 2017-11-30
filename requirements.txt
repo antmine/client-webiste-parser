@@ -1,3 +1,6 @@
 bs4
 sqlalchemy
 pymysql
+adblockparser
+urllib
+urlib2

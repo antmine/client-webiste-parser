@@ -1,4 +1,5 @@
 #!/usr/bin/env python2.7
+# coding: utf8
 
 #lib to query a website
 import urllib2
@@ -6,11 +7,13 @@ import os
 import json
 import sys
 import datetime;
+import re
 #beautifulSoup4 lib to parse data from imported website
 from bs4 import BeautifulSoup
 
 from urllib import FancyURLopener
 from random import choice
+from adblockparser import AdblockRules
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, MetaData, Table, update
 
@@ -28,8 +31,8 @@ adminWebsiteTable = Table("WEBSITE", metadata, autoload=True)
 Session = sessionmaker(bind=engine)
 connection = engine.raw_connection()
 con = engine.connect()
-
-
+blacklist = [line.rstrip('\n') for line in open('./blacklist/blacklist.txt')]
+rules = AdblockRules(blacklist)
 
 try:
     cursor = connection.cursor()
@@ -55,30 +58,30 @@ class MyOpener(FancyURLopener, object):
     version = choice(user_agents)
 
 myOpener = MyOpener()
-print('result ==>', result)
+session = Session()
+
 for website in result:
     try:
-        page = myOpener.open(website[1])
+        print website[1]
+        url = "http://" + website[1]
+        page = myOpener.open(url)
         soup = BeautifulSoup(page, "html.parser")
-        soup.prettify()
+
+        pageContent = soup.prettify()
         date = datetime.datetime.now()
-        session = Session()
-        if not soup.script.string:
-            print "no ads"
-            update = update(adminWebsiteTable)
-            update = update.values({"DATE_CHECK": date.strftime("%Y-%m-%d %H:%M"), "IS_ENABLE": 1})
-            update = update.where(adminWebsiteTable.c.ID_WEBSITE == website[0])
-            session.execute(update)
+        if rules.should_block(pageContent):
+            print website[1] + " blocked"
+            stmt = update(adminWebsiteTable).\
+                where(adminWebsiteTable.c.ID_WEBSITE == website[0]).\
+                values({"DATE_CHECK": date.strftime("%Y-%m-%d %H:%M"), "IS_ENABLE": 0})
+            session.execute(stmt)
             session.commit()
         else:
-            print "website " + website[0] + " script balise present"
-            if "ads" in soup.script.string:
-                update = update(adminWebsiteTable)
-                update = update.values({"DATE_CHECK": date.strftime("%Y-%m-%d %H:%M"), "IS_ENABLE": 0})
-                update = update.where(adminWebsiteTable.c.ID_WEBSITE == website[0])
-                session.execute(update)
-                session.commit()
-                print "website " + website[0] + " contains ads"
-        session.close()
-    except urllib2.HTTPError,e:
+            print website[1] + " contains no ads"
+            stmt = update(adminWebsiteTable).\
+                where(adminWebsiteTable.c.ID_WEBSITE == website[0]).\
+                values({"DATE_CHECK": date.strftime("%Y-%m-%d %H:%M"), "IS_ENABLE": 1})
+            session.execute(stmt)
+            session.commit()
+    except urllib2.HTTPError, e:
         print e.fp.read()
